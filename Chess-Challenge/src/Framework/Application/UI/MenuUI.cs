@@ -9,34 +9,60 @@ namespace ChessChallenge.Application
     {
         public static void DrawButtons(ChallengeController controller)
         {
-            Vector2 buttonPos = UIHelper.Scale(new Vector2(260, 110));
-            Vector2 buttonSize = UIHelper.Scale(new Vector2(260, 55));
+            Vector2 buttonPos = UIHelper.Scale(new Vector2(260, 60));
+            Vector2 buttonSize = UIHelper.Scale(new Vector2(260, 40));
             float spacing = buttonSize.Y * 1.2f;
             float breakSpacing = spacing * 0.6f;
 
-            // Game Buttons
+            // Human buttons
+            buttonPos.Y += breakSpacing;
             if (NextButtonInRow("Human vs MyBot", ref buttonPos, spacing, buttonSize))
             {
                 var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
                 var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
                 controller.StartNewGame(whiteType, blackType);
             }
-            if (NextButtonInRow("MyBot vs MyBot", ref buttonPos, spacing, buttonSize))
+            if (NextButtonInRow("Human vs EvilBot", ref buttonPos, spacing, buttonSize))
             {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBot);
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.EvilBot : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.EvilBot : ChallengeController.PlayerType.Human;
+                controller.StartNewGame(whiteType, blackType);
             }
+            if (NextButtonInRow("Human vs Tier 1", ref buttonPos, spacing, buttonSize))
+            {
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Negamax1 : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Negamax1 : ChallengeController.PlayerType.Human;
+                controller.StartNewGame(whiteType, blackType);
+            }
+            if (NextButtonInRow("Human vs Tier 2", ref buttonPos, spacing, buttonSize))
+            {
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Negamax2 : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Negamax2 : ChallengeController.PlayerType.Human;
+                controller.StartNewGame(whiteType, blackType);
+            }
+            if (NextButtonInRow("Human vs Paroch", ref buttonPos, spacing, buttonSize))
+            {
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Paroch : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Paroch : ChallengeController.PlayerType.Human;
+                controller.StartNewGame(whiteType, blackType);
+            }
+
+
+            // Bot buttons
+            buttonPos.Y += breakSpacing;
             if (NextButtonInRow("MyBot vs EvilBot", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
             }
-
-            // Elo Rating buttons
-            buttonPos.Y += breakSpacing;
             if (NextButtonInRow("MyBot vs Tier 1", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Negamax1);
             }
             if (NextButtonInRow("MyBot vs Tier 2", ref buttonPos, spacing, buttonSize))
+            {
+                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Negamax2);
+            }
+            if (NextButtonInRow("MyBot vs Paroch", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Negamax2);
             }

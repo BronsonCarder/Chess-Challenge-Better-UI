@@ -1,8 +1,9 @@
-﻿using ChessChallenge.API;
+using ChessChallenge.API;
 using System;
 using System.Collections.Generic;
 
-public class MyBot : IChessBot
+namespace ChessChallenge.Example;
+public class Paroch : IChessBot
 {
     public Move Think(Board board, Timer timer)
     {
