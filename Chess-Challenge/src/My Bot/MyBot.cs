@@ -1,4 +1,5 @@
 ﻿using ChessChallenge.API;
+using Raylib_cs;
 using System;
 using System.Collections.Generic;
 
@@ -50,31 +51,40 @@ public class MyBot : IChessBot
     static int EvaluateMove(Board board, Move move, bool isWhite)
     {
         //Check the number of pawns you currently have in play
-        int numPawns = 8 - board.GetPieceList(PieceType.Pawn, isWhite).Count;
+        int numPawn = board.GetPieceList(PieceType.Pawn, isWhite).Count;
+        int numKnight = board.GetPieceList(PieceType.Knight, isWhite).Count;
+        int numBishop = board.GetPieceList(PieceType.Bishop, isWhite).Count;
+        int numRook = board.GetPieceList(PieceType.Rook, isWhite).Count;
+        int numQueen = board.GetPieceList(PieceType.Queen, isWhite).Count;
 
         // Piece values: null, pawn, knight, bishop, rook, queen, king
         int[] pieceValues =
         {
             0,
-            150 + numPawns*25 + board.PlyCount,
+            150,
             300,
             400,
-            500 + board.PlyCount,
+            500,
             10000,
             99999
-        };
+        }; 
+        
+        int material = (numPawn * pieceValues[1]) + (numKnight * pieceValues[2]) + (numBishop * pieceValues[3]) + (numRook * pieceValues[4]) + (numQueen * 1000);
+        int inverseMaterialNorm = (4600 - material) / 10;
 
         //Sets current value to the value of the piece to start out (or 0 for no piece capture)
         int currentValue = pieceValues[(int)move.CapturePieceType];
 
+        currentValue += PieceType.Pawn == move.CapturePieceType || PieceType.Pawn == move.MovePieceType ? (8 - numPawn) * 25 + board.PlyCount : PieceType.Rook == move.CapturePieceType ? board.PlyCount*2 : 0;
+
         //If the piece that's moving is the king, decentivise moving forward, but lay off this as turns pass, can even turn into a benefit for moving the king in late game
         if (move.MovePieceType == PieceType.King && !isWhite && move.StartSquare.Rank > move.TargetSquare.Rank)
         {
-            currentValue -= 100 - board.PlyCount;
+            currentValue -= 100 - inverseMaterialNorm/4;
         }
         else if (move.MovePieceType == PieceType.King && isWhite && move.StartSquare.Rank < move.TargetSquare.Rank)
         {
-            currentValue -= 100 - board.PlyCount;
+            currentValue -= 100 - inverseMaterialNorm/4;
         }
 
         //If the move is to promote a pawn, promote to queen unless that's a bad move for other reasons
@@ -97,22 +107,22 @@ public class MyBot : IChessBot
         int numLegalAttacksAfter = board.GetLegalMoves(true).Length;
 
         //Incentivze creating passed pawns and opening legal moves and captures
-        currentValue += numPassedAfter > numPassedBefore ? 50 + board.PlyCount : 0;
-        currentValue += numLegalMovesAfter > numLegalMovesBefore ? 200 + board.PlyCount : 0;
-        currentValue += numLegalAttacksAfter > numLegalAttacksBefore ? 50 : 0;
+        currentValue += numPassedAfter - numPassedBefore * 50 ;
+        currentValue += numLegalMovesAfter - numLegalMovesBefore * 100;
+        currentValue += numLegalAttacksAfter - numLegalAttacksBefore * 50;
 
         //If it's checkmate, we basically just want to do that
         currentValue += board.IsInCheckmate() ? 999999 : 0;
 
         //If it puts them in check, it gets a bonus, and an extra bonus if that is also a capture
-        currentValue += board.IsInCheck() ? (move.IsCapture ? 400 : 200 + board.PlyCount) : 0;
+        currentValue += board.IsInCheck() ? (move.IsCapture ? 400 : 200 + inverseMaterialNorm/4) : 0;
 
         //And, if it would cause a draw, we disincentivise that, though there's often not a lot you can do about it
         currentValue -= board.IsDraw() ? 99999 : 0;
         board.UndoMove(move);
 
         //This is probably my favorite part of my bot, the DangerValue function. I'll explain in detail when we get there.
-        currentValue -= DangerValue(board, move, pieceValues);
+        currentValue -= DangerValue(board, move, pieceValues, isWhite);
 
         return currentValue;
     }
@@ -137,9 +147,8 @@ public class MyBot : IChessBot
         return move;
     }
 
-    static int DangerValue(Board board, Move move, int[] pieceValues)
+    static int DangerValue(Board board, Move move, int[] pieceValues, bool isWhite)
     {
-
         //Calculate Danger before, make move and calculate Danger after the move
         board.MakeMove(Move.NullMove);
         int dangerBefore = CountDanger(board, pieceValues);
@@ -154,6 +163,19 @@ public class MyBot : IChessBot
 
         return danger;
     }
+
+   // static int GetKingCenterDist(Board board, bool isWhite)
+   // {
+   //     int kingRank = board.GetKingSquare(isWhite).Rank;
+   //     int kingFile = board.GetKingSquare(isWhite).File;
+  
+   //     //Move king toward center in endgame
+   //     int kingCenterDistRank = Math.Max(3 - kingRank, kingRank - 4);
+   //     int kingCenterDistFile = Math.Max(3 - kingFile, kingFile - 4);
+   //     int kingCenterDist = kingCenterDistRank + kingCenterDistFile;
+
+   //     return kingCenterDist*10;
+   // }
 
     static int CountDanger(Board board, int[] pieceValues)
     {

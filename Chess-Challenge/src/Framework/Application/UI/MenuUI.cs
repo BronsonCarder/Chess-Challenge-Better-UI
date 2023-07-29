@@ -64,7 +64,7 @@ namespace ChessChallenge.Application
             }
             if (NextButtonInRow("MyBot vs Paroch", ref buttonPos, spacing, buttonSize))
             {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Negamax2);
+                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Paroch);
             }
 
             // Page buttons
