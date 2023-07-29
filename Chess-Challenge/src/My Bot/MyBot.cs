@@ -1,5 +1,4 @@
 ﻿using ChessChallenge.API;
-using Raylib_cs;
 using System;
 using System.Collections.Generic;
 
@@ -8,26 +7,11 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         Move[] moves = board.GetLegalMoves();
-        var valueList = new int[moves.Length];
-        int moveValue = -999999999;
-
-        //Determine if MyBot is playing white
         bool isWhite = board.IsWhiteToMove;
-
-        //Check the number of pawns you currently have in play
-        int numPawns = 8 - board.GetPieceList(PieceType.Pawn, isWhite).Count;
-
-        // Piece values: null, pawn, knight, bishop, rook, queen, king
-        int[] pieceValues =
-        {
-            0,
-            150 + numPawns*25 + board.PlyCount,
-            300,
-            400,
-            500 + board.PlyCount,
-            10000,
-            99999
-        };
+        var valueList = new int[moves.Length];
+        List<int> indexList = new();
+        int maxMoveValue = int.MinValue;
+        Random rng = new();
 
         //Loop through all legal moves
         for (int i = 0; i < moves.Length; i++)
@@ -38,13 +22,23 @@ public class MyBot : IChessBot
             int currentValue = EvaluateMove(board, move, isWhite);
             valueList[i] = currentValue;
 
-            if (currentValue > moveValue)
-                moveValue = currentValue;
+            if (currentValue > maxMoveValue)
+                maxMoveValue = currentValue;
         }
 
-        //call Choose a Move to... Choose a Move
-        int moveToUse = ChooseAMove(moveValue, valueList);
+        //Loop through the list of values we made earlier, finding ones that match the moveValue we evaluated and adding them to a list
+        for (int i = 0; i < valueList.Length; i++)
+        {
+            if (valueList[i] == maxMoveValue)
+                indexList.Add(i);
+        }
+
+        //index is a random index from the list we just created
+        int index = rng.Next(indexList.Count);
+
+        int moveToUse = indexList[index]; ;
         Move bestMove = moves[moveToUse];
+
         return bestMove;
     }
 
@@ -127,26 +121,6 @@ public class MyBot : IChessBot
         return currentValue;
     }
 
-    static int ChooseAMove(int moveValue, int[] valueList)
-    {
-        Random rng = new();
-        List<int> indexList = new();
-
-        //Loop through the list of values we made earlier, finding ones that match the moveValue we evaluated and adding them to a list
-        for (int i = 0; i < valueList.Length; i++)
-        {
-            if (valueList[i] == moveValue)
-                indexList.Add(i);
-        }
-
-        //index is a random index from the list we just created
-        int index = rng.Next(indexList.Count);
-
-        //Return the index of the move randomly selected from all the moves that tied for highest value
-        int move = indexList[index];
-        return move;
-    }
-
     static int DangerValue(Board board, Move move, int[] pieceValues, bool isWhite)
     {
         //Calculate Danger before, make move and calculate Danger after the move
@@ -181,6 +155,7 @@ public class MyBot : IChessBot
     {
         int dangerValue = 0;
         int numAttacks = 0;
+
         //Since we've already done MakeMove in the larger context, we can just use getlegalmoves to get opponents moves (thanks community!)
         Move[] captureMoves = board.GetLegalMoves(true);
 
@@ -216,9 +191,7 @@ public class MyBot : IChessBot
 
             //If there are no opposing pawns in the rank, it is a passed pawn
             if (numPawnsInRank == 0)
-            {
                 return true;
-            }
         }
         return false;
     }
