@@ -8,26 +8,11 @@ public class Paroch : IChessBot
     public Move Think(Board board, Timer timer)
     {
         Move[] moves = board.GetLegalMoves();
-        var valueList = new int[moves.Length];
-        int moveValue = -999999999;
-
-        //Determine if MyBot is playing white
         bool isWhite = board.IsWhiteToMove;
-
-        //Check the number of pawns you currently have in play
-        int numPawns = 8 - board.GetPieceList(PieceType.Pawn, isWhite).Count;
-
-        // Piece values: null, pawn, knight, bishop, rook, queen, king
-        int[] pieceValues =
-        {
-            0,
-            150 + numPawns*25 + board.PlyCount,
-            300,
-            400,
-            500 + board.PlyCount,
-            10000,
-            99999
-        };
+        var valueList = new int[moves.Length];
+        List<int> indexList = new();
+        int maxMoveValue = int.MinValue;
+        Random rng = new();
 
         //Loop through all legal moves
         for (int i = 0; i < moves.Length; i++)
@@ -38,44 +23,63 @@ public class Paroch : IChessBot
             int currentValue = EvaluateMove(board, move, isWhite);
             valueList[i] = currentValue;
 
-            if (currentValue > moveValue)
-                moveValue = currentValue;
+            if (currentValue > maxMoveValue)
+                maxMoveValue = currentValue;
         }
 
-        //call Choose a Move to... Choose a Move
-        int moveToUse = ChooseAMove(moveValue, valueList);
+        //Loop through the list of values we made earlier, finding ones that match the moveValue we evaluated and adding them to a list
+        for (int i = 0; i < valueList.Length; i++)
+        {
+            if (valueList[i] == maxMoveValue)
+                indexList.Add(i);
+        }
+
+        //index is a random index from the list we just created
+        int index = rng.Next(indexList.Count);
+
+        int moveToUse = indexList[index]; ;
         Move bestMove = moves[moveToUse];
+
         return bestMove;
     }
 
     static int EvaluateMove(Board board, Move move, bool isWhite)
     {
         //Check the number of pawns you currently have in play
-        int numPawns = 8 - board.GetPieceList(PieceType.Pawn, isWhite).Count;
+        int numPawn = board.GetPieceList(PieceType.Pawn, isWhite).Count;
+        int numKnight = board.GetPieceList(PieceType.Knight, isWhite).Count;
+        int numBishop = board.GetPieceList(PieceType.Bishop, isWhite).Count;
+        int numRook = board.GetPieceList(PieceType.Rook, isWhite).Count;
+        int numQueen = board.GetPieceList(PieceType.Queen, isWhite).Count;
 
         // Piece values: null, pawn, knight, bishop, rook, queen, king
         int[] pieceValues =
         {
             0,
-            150 + numPawns*25 + board.PlyCount,
+            150,
             300,
             400,
-            500 + board.PlyCount,
+            500,
             10000,
             99999
         };
 
+        int material = (numPawn * pieceValues[1]) + (numKnight * pieceValues[2]) + (numBishop * pieceValues[3]) + (numRook * pieceValues[4]) + (numQueen * 1000);
+        int inverseMaterialNorm = (4600 - material) / 10;
+
         //Sets current value to the value of the piece to start out (or 0 for no piece capture)
         int currentValue = pieceValues[(int)move.CapturePieceType];
+
+        currentValue += PieceType.Pawn == move.CapturePieceType || PieceType.Pawn == move.MovePieceType ? (8 - numPawn) * 25 + board.PlyCount : PieceType.Rook == move.CapturePieceType ? board.PlyCount * 2 : 0;
 
         //If the piece that's moving is the king, decentivise moving forward, but lay off this as turns pass, can even turn into a benefit for moving the king in late game
         if (move.MovePieceType == PieceType.King && !isWhite && move.StartSquare.Rank > move.TargetSquare.Rank)
         {
-            currentValue -= 100 - board.PlyCount;
+            currentValue -= 100 - inverseMaterialNorm / 4;
         }
         else if (move.MovePieceType == PieceType.King && isWhite && move.StartSquare.Rank < move.TargetSquare.Rank)
         {
-            currentValue -= 100 - board.PlyCount;
+            currentValue -= 100 - inverseMaterialNorm / 4;
         }
 
         //If the move is to promote a pawn, promote to queen unless that's a bad move for other reasons
@@ -98,15 +102,15 @@ public class Paroch : IChessBot
         int numLegalAttacksAfter = board.GetLegalMoves(true).Length;
 
         //Incentivze creating passed pawns and opening legal moves and captures
-        currentValue += numPassedAfter > numPassedBefore ? 50 + board.PlyCount : 0;
-        currentValue += numLegalMovesAfter > numLegalMovesBefore ? 200 + board.PlyCount : 0;
-        currentValue += numLegalAttacksAfter > numLegalAttacksBefore ? 50 : 0;
+        currentValue += numPassedAfter - numPassedBefore * 50;
+        currentValue += numLegalMovesAfter - numLegalMovesBefore * 100;
+        currentValue += numLegalAttacksAfter - numLegalAttacksBefore * 50;
 
         //If it's checkmate, we basically just want to do that
         currentValue += board.IsInCheckmate() ? 999999 : 0;
 
         //If it puts them in check, it gets a bonus, and an extra bonus if that is also a capture
-        currentValue += board.IsInCheck() ? (move.IsCapture ? 400 : 200 + board.PlyCount) : 0;
+        currentValue += board.IsInCheck() ? (move.IsCapture ? 400 : 200 + inverseMaterialNorm / 4) : 0;
 
         //And, if it would cause a draw, we disincentivise that, though there's often not a lot you can do about it
         currentValue -= board.IsDraw() ? 99999 : 0;
@@ -118,29 +122,8 @@ public class Paroch : IChessBot
         return currentValue;
     }
 
-    static int ChooseAMove(int moveValue, int[] valueList)
-    {
-        Random rng = new();
-        List<int> indexList = new();
-
-        //Loop through the list of values we made earlier, finding ones that match the moveValue we evaluated and adding them to a list
-        for (int i = 0; i < valueList.Length; i++)
-        {
-            if (valueList[i] == moveValue)
-                indexList.Add(i);
-        }
-
-        //index is a random index from the list we just created
-        int index = rng.Next(indexList.Count);
-
-        //Return the index of the move randomly selected from all the moves that tied for highest value
-        int move = indexList[index];
-        return move;
-    }
-
     static int DangerValue(Board board, Move move, int[] pieceValues)
     {
-
         //Calculate Danger before, make move and calculate Danger after the move
         board.MakeMove(Move.NullMove);
         int dangerBefore = CountDanger(board, pieceValues);
@@ -160,6 +143,7 @@ public class Paroch : IChessBot
     {
         int dangerValue = 0;
         int numAttacks = 0;
+
         //Since we've already done MakeMove in the larger context, we can just use getlegalmoves to get opponents moves (thanks community!)
         Move[] captureMoves = board.GetLegalMoves(true);
 
@@ -195,9 +179,7 @@ public class Paroch : IChessBot
 
             //If there are no opposing pawns in the rank, it is a passed pawn
             if (numPawnsInRank == 0)
-            {
                 return true;
-            }
         }
         return false;
     }
