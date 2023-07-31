@@ -1,4 +1,5 @@
 ﻿using ChessChallenge.API;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,129 +8,116 @@ public class MyBot : IChessBot
 {
     public Move Think(Board board, Timer timer)
     {
-        Move[] moves = board.GetLegalMoves();
-        bool isWhite = board.IsWhiteToMove;
-        List<int> valueList = new();
-        List<int> indexList = new();
-        Random rng = new();
-        int maxDepth = 1;
-        int alpha = int.MinValue;
-        int beta = int.MaxValue;
-
-        for (int v = 0; v < moves.Length; v++)
-        {
-            int minMax = MinMax(board, moves[v], maxDepth, alpha, beta);
-
-            valueList.Add(minMax);
-        }
-
-        //Find the maximum value
-        int maxMoveValue = valueList.Max();
-
-        for (int i = 0; i < valueList.Count; i++)
-        {
-            if (valueList[i] == maxMoveValue)
-                indexList.Add(i);
-        }
-
-        //Return one of these indices at random
-        int moveToUse = rng.Next(indexList.Count);
-
-        return moves[indexList[moveToUse]];
+        return MinMax(board, Move.NullMove, 4, -99999, 99999, true).bestMove;
     }
 
-    static int EvaluateMove(Board board, Move move, bool isWhite)
+    static int GetMaterial(Board board, bool isWhite)
     {
-        //Check the number of pawns you currently have in play
+        //Check the number of each piece type you have in play
         int numPawn = board.GetPieceList(PieceType.Pawn, isWhite).Count;
         int numKnight = board.GetPieceList(PieceType.Knight, isWhite).Count;
         int numBishop = board.GetPieceList(PieceType.Bishop, isWhite).Count;
         int numRook = board.GetPieceList(PieceType.Rook, isWhite).Count;
         int numQueen = board.GetPieceList(PieceType.Queen, isWhite).Count;
 
+        //Max value 4600
+        return numPawn * 150 + numKnight * 300 + numBishop * 400 + numRook * 500 + numQueen * 1000;
+    }
+
+    static List<int> EvaluateMoves(Board board)
+    {
+        List<int> valueList = new();
+
+        if (board.IsInCheckmate())
+        {
+            valueList.Add(-99999);
+            return valueList;
+        }
+
+        if (board.IsDraw())
+        {
+            valueList.Add(0);
+            return valueList;
+        }
+
+        Move[] moves = board.GetLegalMoves();
+        bool isWhite = board.IsWhiteToMove;
+        int numPawn = board.GetPieceList(PieceType.Pawn, isWhite).Count;
+
         // Piece values: null, pawn, knight, bishop, rook, queen, king
         int[] pieceValues =
         {
             0,
-            150,
+            150 + (8 - numPawn) * 25 + board.PlyCount,
             300,
             400,
-            500,
+            500 + board.PlyCount * 2,
             10000,
             99999
         };
 
-        int material = (numPawn * pieceValues[1]) + (numKnight * pieceValues[2]) + (numBishop * pieceValues[3]) + (numRook * pieceValues[4]) + (numQueen * 1000);
-        int inverseMaterialNorm = (4600 - material) / 10;
-
-        //Sets current value to the value of the piece to start out (or 0 for no piece capture)
-        int currentValue = pieceValues[(int)move.CapturePieceType];
-
-        currentValue += PieceType.Pawn == move.CapturePieceType || PieceType.Pawn == move.MovePieceType ? (8 - numPawn) * 25 + board.PlyCount : PieceType.Rook == move.CapturePieceType ? board.PlyCount * 2 : 0;
-
-        //If the piece that's moving is the king, decentivise moving forward, but lay off this as turns pass, can even turn into a benefit for moving the king in late game
-        if (move.MovePieceType == PieceType.King && !isWhite && move.StartSquare.Rank > move.TargetSquare.Rank)
+        foreach (Move move in moves)
         {
-            currentValue -= 100 - inverseMaterialNorm / 4;
-        }
-        else if (move.MovePieceType == PieceType.King && isWhite && move.StartSquare.Rank < move.TargetSquare.Rank)
-        {
-            currentValue -= 100 - inverseMaterialNorm / 4;
+            int currentValue = pieceValues[(int)move.CapturePieceType];
+
+            //This is probably my favorite part of my bot, the DangerValue function. I'll explain in detail when we get there.
+            currentValue -= DangerValue(board, move, pieceValues);
+
+            //If the move is to promote a pawn, promote to queen unless that's a bad move for other reasons
+            currentValue += move.IsPromotion ? pieceValues[(int)move.PromotionPieceType] / 100 : 0;
+
+            valueList.Add(currentValue);
         }
 
-        //If the move is to promote a pawn, promote to queen unless that's a bad move for other reasons
-        currentValue += move.IsPromotion ? pieceValues[(int)move.PromotionPieceType] / 100 : 0;
+        return valueList;
+    }
 
-        //If captured piece is passed pawn, incentivize taking it
-        currentValue += IsPassedPawn(board, move.TargetSquare, move.CapturePieceType, !isWhite) ? 50 : 0;
+    static int EvaluatePosition(Board board, bool isWhite)
+    {
+        if (board.IsInCheckmate())
+            return -99999;
 
-        //If move piece is passed pawn, move it forward
-        currentValue += IsPassedPawn(board, move.StartSquare, move.MovePieceType, isWhite) ? 100 + board.PlyCount : 0;
+        if (board.IsDraw())
+            return 0;
 
-        int numPassedBefore = NumPassedPawn(board, isWhite);
-        int numLegalMovesBefore = board.GetLegalMoves().Length;
-        int numLegalAttacksBefore = board.GetLegalMoves(true).Length;
+        int myMaterial = GetMaterial(board, isWhite);
+        int opMaterial = GetMaterial(board, !isWhite);
 
-        board.MakeMove(move);
+        //Sets current value to the material value of opponent, minus material value of player. 
+        int currentValue = opMaterial - myMaterial;
+        int inverseMaterial = 4600 - currentValue;
 
-        int numPassedAfter = NumPassedPawn(board, isWhite);
-        int numLegalMovesAfter = board.GetLegalMoves().Length;
-        int numLegalAttacksAfter = board.GetLegalMoves(true).Length;
+        currentValue += board.IsInCheck() ? 200 + inverseMaterial / 40 : 0;
 
-        //Incentivze creating passed pawns and opening legal moves and captures
-        currentValue += numPassedAfter - numPassedBefore * 50;
-        currentValue += numLegalMovesAfter - numLegalMovesBefore * 100;
-        currentValue += numLegalAttacksAfter - numLegalAttacksBefore * 50;
-
-        //If it's checkmate, we basically just want to do that
-        currentValue += board.IsInCheckmate() ? 999999 : 0;
-
-        //If it puts them in check, it gets a bonus, and an extra bonus if that is also a capture
-        currentValue += board.IsInCheck() ? (move.IsCapture ? 400 : 200 + inverseMaterialNorm / 4) : 0;
-
-        //And, if it would cause a draw, we disincentivise that, though there's often not a lot you can do about it
-        currentValue -= board.IsDraw() ? 99999 : 0;
-        board.UndoMove(move);
-
-        //This is probably my favorite part of my bot, the DangerValue function. I'll explain in detail when we get there.
-        currentValue -= DangerValue(board, move, pieceValues);
+        if (board.GetKingSquare(!isWhite).Rank > 3)
+        {
+            currentValue -= 100 - inverseMaterial / 40;
+        }
+        else if (board.GetKingSquare(isWhite).Rank < 3)
+        {
+            currentValue -= 100 - inverseMaterial / 40;
+        }
 
         return currentValue;
     }
 
     static int DangerValue(Board board, Move move, int[] pieceValues)
     {
+        int numLegalMovesBefore = board.GetLegalMoves().Length;
+        int numLegalAttacksBefore = board.GetLegalMoves(true).Length;
         //Calculate Danger before, make move and calculate Danger after the move
-        board.ForceSkipTurn();
+        board.MakeMove(Move.NullMove);
         int dangerBefore = CountDanger(board, pieceValues);
-        board.ForceSkipTurn();
+        board.UndoMove(Move.NullMove);
         board.MakeMove(move);
         int dangerAfter = CountDanger(board, pieceValues);
+        int numLegalMovesAfter = board.GetLegalMoves().Length;
+        int numLegalAttacksAfter = board.GetLegalMoves(true).Length;
         board.UndoMove(move);
 
         //Subtract the DangerAfter from the Danger before, giving a value that decentivizes putting major pieces in jeopardy
         //But also that incentivizes protecting those same pieces
-        int danger = dangerAfter - dangerBefore;
+        int danger = (numLegalMovesBefore * 100 + numLegalAttacksBefore * 50 + dangerAfter) - (dangerBefore + numLegalMovesAfter + numLegalAttacksAfter);
 
         return danger;
     }
@@ -154,91 +142,93 @@ public class MyBot : IChessBot
         return dangerValue;
     }
 
-    static bool IsPassedPawn(Board board, Square square, PieceType piece, bool isWhite)
+    static (int eval, Move bestMove) MinMax(Board board, Move move, int maxDepth, int alpha, int beta, bool isMaximizing)
     {
-        int numPawnsInRank = 0;
+        if (board.IsInCheckmate())
+            return isMaximizing ? (-99999, Move.NullMove) : (99999, Move.NullMove);
 
-        //Get the list of all of the opponent's pawns
-        PieceList pieces = board.GetPieceList(PieceType.Pawn, !isWhite);
+        if (board.IsDraw())
+            return (0, Move.NullMove);
 
-        if (piece == PieceType.Pawn)
-        {
-            //Loop through all of the opponent's pawns
-            for (int i = 0; i < pieces.Count; i++)
-            {
-                //If it shares the same rank as the current pawn, add it to the count
-                if (pieces[i].Square.Rank == square.Rank)
-                    numPawnsInRank++;
-            }
-
-            //If there are no opposing pawns in the rank, it is a passed pawn
-            if (numPawnsInRank == 0)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static int NumPassedPawn(Board board, bool isWhite)
-    {
-        int numPassedPawns = 0;
-
-        //Get the list of pawns for your color
-        PieceList pieces = board.GetPieceList(PieceType.Pawn, isWhite);
-
-        //Loop over all of the pawns in the list
-        for (int i = 0; i < pieces.Count; i++)
-        {
-            //If it's a passed pawn, count it
-            if (IsPassedPawn(board, pieces.GetPiece(i).Square, PieceType.Pawn, isWhite))
-                numPassedPawns++;
-        }
-
-        return numPassedPawns;
-    }
-
-    static int MinMax(Board board, Move move, int maxDepth, int alpha, int beta)
-    {
-        Move[] moves = board.GetLegalMoves();
-        bool isWhite = board.IsWhiteToMove;
+        List<int> valueList = new();
 
         //If you've reached max depth, get the list of the values of all of the moves at that depth
         if (maxDepth == 0)
-            return EvaluateMove(board, move, isWhite);
-
-        //If board is checkmate, return the worst possible results
-        if (board.IsInCheckmate())
-            return int.MinValue;
-
-        if (board.IsDraw() || moves.Length == 0)
-            return 0;
-
-        board.MakeMove(move);
-
-        //Loop through the index list of best values
-        for (int i = 0; i < moves.Length; i++)
         {
-            moves = board.GetLegalMoves();
-            Move newMove = moves[i];
-
-            //Make the move
-            board.MakeMove(newMove);
-
-            //Call this function, starting this process from the beginning, but with maxDepth - 1
-            int callResults = -MinMax(board, newMove, maxDepth - 1, -alpha, -beta);
-
-            if (callResults >= beta)
-                return beta;
-
-            alpha = Math.Max(alpha, callResults);
-            beta = Math.Min(beta, callResults);
-
-            //Undo the move so that we can continue the search
-            board.UndoMove(newMove);
+            int leafResult = EvaluatePosition(board, isMaximizing);
+            return (leafResult, Move.NullMove);
         }
 
-        board.UndoMove(move);
-        return alpha;
+        if (move == Move.NullMove)
+        {
+            valueList = EvaluateMoves(board);
+        }
+        else
+        {
+            board.UndoMove(move);
+            valueList = EvaluateMoves(board);
+            board.MakeMove(move);
+        }
+
+        if (isMaximizing)                            //Maximizing
+        {
+            Move[] moves = board.GetLegalMoves();
+            IEnumerable<Move> orderedMoves = moves.Zip(valueList, (move, value) => new { Move = move, Value = value })
+                                     .OrderByDescending(item => item.Value)
+                                     .Select(item => item.Move)
+                                     .ToList();
+            valueList = new();
+            int maxEval = -99999;
+
+            foreach (Move maxMove in orderedMoves)
+            {
+                board.MakeMove(maxMove);
+
+               // if (cache.contains(new State(board, maxDepth, isMaximizing))
+                      //  return cache.get(new State(board, maxDepth, isMaximizing));
+
+                //Call this function, starting this process from the beginning, but with maxDepth - 1
+                int callResults = -MinMax(board, maxMove, maxDepth - 1, alpha, beta, false).eval;
+                board.UndoMove(maxMove);
+                valueList.Add(callResults);
+
+                maxEval = Math.Max(maxEval, callResults);
+                alpha = Math.Max(alpha, maxEval);
+
+                if (alpha >= beta)
+                    break;
+            }
+
+            //Cache.Put(new State(board, maxDepth, isMaximizing));
+            return (maxEval, orderedMoves.First());
+        }
+        else                                       //Minimizing
+        {
+            Move[] moves = board.GetLegalMoves();
+            IEnumerable<Move> orderedMoves = moves.Zip(valueList, (move, value) => new { Move = move, Value = value })
+                                     .OrderByDescending(item => item.Value)
+                                     .Select(item => item.Move)
+                                     .ToList();
+            valueList = new();
+            int minEval = 99999;
+
+            foreach (Move minMove in orderedMoves)
+            {
+                board.MakeMove(minMove);
+
+                //Call this function, starting this process from the beginning, but with maxDepth - 1
+                int callResults = -MinMax(board, minMove, maxDepth - 1, alpha, beta, true).eval;
+                board.UndoMove(minMove);
+                valueList.Add(callResults);
+
+                minEval = Math.Min(minEval, callResults);
+                beta = Math.Min(beta, minEval);
+
+                if (alpha >= beta)
+                    break;
+            }
+
+            return (minEval, orderedMoves.Last());
+        }
     }
 }
