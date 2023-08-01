@@ -34,7 +34,7 @@ namespace ChessChallenge.Application
             Raylib.DrawRectangle(0, screenHeight - height, (int)(screenWidth * t), height, col);
 
             var textPos = new System.Numerics.Vector2(screenWidth / 2, screenHeight - height / 2);
-            string text = $"Bot Brain Capacity: {numTokens}/{tokenLimit}";
+            string text = $"Bot Brain Capacity remaining: {1024-numTokens}/{tokenLimit}";
             if (numTokens > tokenLimit)
             {
                 text += " [LIMIT EXCEEDED]";

@@ -8,7 +8,7 @@ public class Stormwind : IChessBot
 {
     public Move Think(Board board, Timer timer)
     {
-        return MinMax(board, Move.NullMove, 4, -99999, 99999, true).bestMove;
+        return Negamax(board, 4, -99999, 99999).bestMove;
     }
 
     static int GetMaterial(Board board, bool isWhite)
@@ -21,22 +21,23 @@ public class Stormwind : IChessBot
             + board.GetPieceList(PieceType.Queen, isWhite).Count * 1000;
     }
 
-    static int EvaluatePosition(Board board, bool isMaximizing)
+    static int EvaluatePosition(Board board)
     {
         if (board.IsInCheckmate())
-            return isMaximizing ? -99999 + board.PlyCount : 99999 - board.PlyCount;
+            return -99999 + board.PlyCount;
 
         if (board.IsDraw())
             return 0;
 
         bool isWhite = board.IsWhiteToMove;
+        bool isPlayer = board.PlyCount % 2 == 0;
         int myMaterial;
         int opMaterial;
 
         myMaterial = GetMaterial(board, isWhite);
         opMaterial = GetMaterial(board, !isWhite);
-        Square myKing = board.GetKingSquare(isMaximizing);
-        Square opKing = board.GetKingSquare(!isMaximizing);
+        Square myKing = board.GetKingSquare(isPlayer);
+        Square opKing = board.GetKingSquare(!isPlayer);
         PieceList pawns = board.GetPieceList(PieceType.Pawn, isWhite);
 
         //Sets current value to the material value of opponent, minus material value of player. 
@@ -44,7 +45,7 @@ public class Stormwind : IChessBot
 
         currentValue += board.IsInCheck() ? 200 + board.PlyCount * 5 : 0;
 
-        if (isMaximizing)
+        if (isPlayer)
         {
             currentValue += opMaterial < 2800 ? (8 - myKing.Rank) * 10 : 0;
         }
@@ -55,7 +56,7 @@ public class Stormwind : IChessBot
 
         foreach (Piece piece in pawns)
         {
-            if (!isMaximizing)
+            if (!isPlayer)
             {
                 currentValue += (piece.Square.Rank - 8);
             }
@@ -78,70 +79,41 @@ public class Stormwind : IChessBot
         return currentValue;
     }
 
-    static (int eval, Move bestMove) MinMax(Board board, Move move, int maxDepth, int alpha, int beta, bool isMaximizing)
+    static (int eval, Move bestMove) Negamax(Board board, int maxDepth, int alpha, int beta)
     {
         if (board.IsInCheckmate())
-            return isMaximizing ? (-99999 + board.PlyCount, Move.NullMove) : (99999 - board.PlyCount, Move.NullMove);
+            return (-99999 + board.PlyCount, Move.NullMove);
 
         if (board.IsDraw())
             return (0, Move.NullMove);
 
-        List<int> valueList = new();
-
         //If you've reached max depth, get the list of the values of all of the moves at that depth
         if (maxDepth == 0)
         {
-            int leafResult = EvaluatePosition(board, isMaximizing);
+            int leafResult = EvaluatePosition(board);
             return (leafResult, Move.NullMove);
         }
 
-        if (isMaximizing)                            //Maximizing
+        Move[] moves = board.GetLegalMoves();
+        List<int> valueList = new();
+        int maxEval = -99999;
+
+        foreach (Move maxMove in moves)
         {
-            Move[] moves = board.GetLegalMoves();
-            valueList = new();
-            int maxEval = -99999;
+            board.MakeMove(maxMove);
 
-            foreach (Move maxMove in moves)
-            {
-                board.MakeMove(maxMove);
+            //Call this function, starting this process from the beginning, but with maxDepth - 1
+            int callResults = -Negamax(board, maxDepth - 1, -beta, -alpha).eval;
+            board.UndoMove(maxMove);
+            valueList.Add(callResults);
 
-                //Call this function, starting this process from the beginning, but with maxDepth - 1
-                int callResults = MinMax(board, maxMove, maxDepth - 1, alpha, beta, false).eval;
-                board.UndoMove(maxMove);
-                valueList.Add(callResults);
+            maxEval = Math.Max(maxEval, callResults);
+            alpha = Math.Max(alpha, maxEval);
 
-                maxEval = Math.Max(maxEval, callResults);
-                alpha = Math.Max(alpha, maxEval);
-
-                if (alpha >= beta)
-                    break;
-            }
-
-            return (maxEval, moves[valueList.IndexOf(valueList.Max())]);
+            if (alpha >= beta)
+                break;
         }
-        else                                       //Minimizing
-        {
-            Move[] moves = board.GetLegalMoves();
-            valueList = new();
-            int minEval = 99999;
 
-            foreach (Move minMove in moves)
-            {
-                board.MakeMove(minMove);
-
-                //Call this function, starting this process from the beginning, but with maxDepth - 1
-                int callResults = MinMax(board, minMove, maxDepth - 1, alpha, beta, true).eval;
-                board.UndoMove(minMove);
-                valueList.Add(callResults);
-
-                minEval = Math.Min(minEval, callResults);
-                beta = Math.Min(beta, minEval);
-
-                if (alpha >= beta)
-                    break;
-            }
-
-            return (minEval, moves[valueList.IndexOf(valueList.Min())]);
-        }
+        return (maxEval, moves[valueList.IndexOf(valueList.Max())]);
     }
 }
