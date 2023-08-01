@@ -87,7 +87,6 @@ public class Stormwind : IChessBot
         if (board.IsDraw())
             return (0, Move.NullMove);
 
-        //If you've reached max depth, get the list of the values of all of the moves at that depth
         if (maxDepth == 0)
         {
             int leafResult = EvaluatePosition(board);
@@ -96,24 +95,22 @@ public class Stormwind : IChessBot
 
         Move[] moves = board.GetLegalMoves();
         List<int> valueList = new();
-        int maxEval = -99999;
+        int eval = -99999;
 
-        foreach (Move maxMove in moves)
+        foreach (Move move in moves)
         {
-            board.MakeMove(maxMove);
-
-            //Call this function, starting this process from the beginning, but with maxDepth - 1
+            board.MakeMove(move);
             int callResults = -Negamax(board, maxDepth - 1, -beta, -alpha).eval;
-            board.UndoMove(maxMove);
+            board.UndoMove(move);
             valueList.Add(callResults);
 
-            maxEval = Math.Max(maxEval, callResults);
-            alpha = Math.Max(alpha, maxEval);
+            eval = Math.Max(eval, callResults);
+            alpha = Math.Max(alpha, eval);
 
             if (alpha >= beta)
                 break;
         }
 
-        return (maxEval, moves[valueList.IndexOf(valueList.Max())]);
+        return (eval, moves[valueList.IndexOf(valueList.Max())]);
     }
 }
