@@ -17,7 +17,7 @@ namespace ChessChallenge.Application
                 Color white = new(225, 225, 225, 225);
                 Color red = new Color(200, 0, 0, 255);
                 Color green = new Color(0, 200, 0, 255);
-                Vector2 startPos = UIHelper.Scale(new Vector2(1500, 150));
+                Vector2 startPos = UIHelper.Scale(new Vector2(1480, 120));
                 float spacingY = UIHelper.Scale(35);
 
                 DrawNextText($"Game {controller.CurrGameNumber} of {controller.TotalGameCount}", headerFontSize, Color.WHITE);

@@ -1,9 +1,10 @@
-﻿using ChessChallenge.API;
+using ChessChallenge.API;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-public class MyBot : IChessBot
+namespace ChessChallenge.Example;
+public class Stormwind : IChessBot
 {
     public Move Think(Board board, Timer timer)
     {
@@ -85,6 +86,8 @@ public class MyBot : IChessBot
         if (board.IsDraw())
             return (0, Move.NullMove);
 
+        List<int> valueList = new();
+
         //If you've reached max depth, get the list of the values of all of the moves at that depth
         if (maxDepth == 0)
         {
@@ -95,7 +98,7 @@ public class MyBot : IChessBot
         if (isMaximizing)                            //Maximizing
         {
             Move[] moves = board.GetLegalMoves();
-            List<int> valueList = new();
+            valueList = new();
             int maxEval = -99999;
 
             foreach (Move maxMove in moves)
@@ -119,7 +122,7 @@ public class MyBot : IChessBot
         else                                       //Minimizing
         {
             Move[] moves = board.GetLegalMoves();
-            List<int> valueList = new();
+            valueList = new();
             int minEval = 99999;
 
             foreach (Move minMove in moves)

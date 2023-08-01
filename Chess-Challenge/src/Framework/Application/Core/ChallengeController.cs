@@ -21,7 +21,8 @@ namespace ChessChallenge.Application
             EvilBot,
             Negamax1,
             Negamax2,
-            Paroch
+            Paroch,
+            Stormwind
         }
 
         // Game state
@@ -221,6 +222,7 @@ namespace ChessChallenge.Application
                 PlayerType.Negamax1 => new ChessPlayer(new Negamax1(), type, GameDurationMilliseconds),
                 PlayerType.Negamax2 => new ChessPlayer(new Negamax2(), type, GameDurationMilliseconds),
                 PlayerType.Paroch => new ChessPlayer(new Paroch(), type, GameDurationMilliseconds),
+                PlayerType.Stormwind => new ChessPlayer(new Stormwind(), type, GameDurationMilliseconds),
                 _ => new ChessPlayer(new HumanPlayer(boardUI), type)
             };
         }

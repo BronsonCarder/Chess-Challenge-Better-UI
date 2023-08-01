@@ -10,12 +10,12 @@ namespace ChessChallenge.Application
         public static void DrawButtons(ChallengeController controller)
         {
             Vector2 buttonPos = UIHelper.Scale(new Vector2(260, 60));
-            Vector2 buttonSize = UIHelper.Scale(new Vector2(260, 40));
+            Vector2 buttonSize = UIHelper.Scale(new Vector2(280, 41));
             float spacing = buttonSize.Y * 1.2f;
-            float breakSpacing = spacing * 0.6f;
+            float breakSpacing = spacing * 0.5f;
 
             // Human buttons
-            buttonPos.Y += breakSpacing;
+            buttonPos.Y += breakSpacing/2;
             if (NextButtonInRow("Human vs MyBot", ref buttonPos, spacing, buttonSize))
             {
                 var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
@@ -46,6 +46,12 @@ namespace ChessChallenge.Application
                 var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Paroch : ChallengeController.PlayerType.Human;
                 controller.StartNewGame(whiteType, blackType);
             }
+            if (NextButtonInRow("Human vs Stormwind", ref buttonPos, spacing, buttonSize))
+            {
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Stormwind : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.Stormwind : ChallengeController.PlayerType.Human;
+                controller.StartNewGame(whiteType, blackType);
+            }
 
 
             // Bot buttons
@@ -65,6 +71,10 @@ namespace ChessChallenge.Application
             if (NextButtonInRow("MyBot vs Paroch", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Paroch);
+            }
+            if (NextButtonInRow("MyBot vs Stormwind", ref buttonPos, spacing, buttonSize))
+            {
+                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Stormwind);
             }
 
             // Page buttons
