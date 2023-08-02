@@ -6,15 +6,29 @@ using System.Linq;
 namespace ChessChallenge.Example;
 public class Stormwind : IChessBot
 {
+    struct TTEntry
+    {
+        public ulong key;
+        public Move move;
+        public int depth, score, bound;
+        public TTEntry(ulong _key, Move _move, int _depth, int _score, int _bound)
+        {
+            key = _key; move = _move; depth = _depth; score = _score; bound = _bound;
+        }
+    }
+
+    const int entries = (1 << 20);
+    TTEntry[] tt = new TTEntry[entries];
+
     public Move Think(Board board, Timer timer)
     {
         Move bestMove = Move.NullMove;
         int alpha = -99999;
         int beta = 99999;
 
-        for (int depth = 1; depth <= 10; depth++)
+        for (int depth = 1; depth <= 42; depth++)
         {
-            var results = Negamax(board, timer, depth, alpha, beta);
+            var results = Negamax(board, timer, depth, 0, alpha, beta, bestMove);
 
             // Out of time
             if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
@@ -93,54 +107,75 @@ public class Stormwind : IChessBot
         return currentValue;
     }
 
-    static Move[] MoveOrdering(Board board)
+    public (int alpha, Move bestMove) Negamax(Board board, Timer timer, int depth, int ply, int alpha, int beta, Move move)
     {
         Move[] moves = board.GetLegalMoves();
+        List<int> scoresList = new();
         List<int> valueList = new();
+        bool notRoot = ply > 0;
+        int maxEval = -99999;
+        int origAlpha = alpha;
+        ulong key = board.ZobristKey;
 
-        foreach (Move move in moves)
-            valueList.Add(-((int)move.CapturePieceType * 100 - (int)move.MovePieceType));
+        TTEntry entry = tt[key % entries];
 
-        Array.Sort(valueList.ToArray(), moves);
-        return moves;
-    }
+        if (notRoot && board.IsDraw())
+            return (0, move);
 
-    static (int alpha, Move bestMove) Negamax(Board board, Timer timer, int maxDepth, int alpha, int beta)
-    {
         if (board.IsInCheckmate())
-            return (-99999 + board.PlyCount, Move.NullMove);
+            return (-99999 + board.PlyCount, move);
 
-        if (board.IsDraw())
-            return (0, Move.NullMove);
-
-        if (maxDepth == 0)
+        if (depth == 0)
         {
             int leafResult = EvaluatePosition(board);
-            return (leafResult, Move.NullMove);
+            return (leafResult, move);
         }
 
-        Move[] moves = MoveOrdering(board);
-        List<int> valueList = new();
-        int maxEval = -99999;
+        // TT cutoffs
+        if (notRoot && entry.key == key && entry.depth >= depth && (
+            entry.bound == 3 // exact score
+                || entry.bound == 2 && entry.score >= beta // lower bound, fail high
+                || entry.bound == 1 && entry.score <= alpha // upper bound, fail low
+        )) return (entry.score, entry.move);
 
-        foreach (Move move in moves)
+        foreach (Move scoreMove in moves)
         {
-            board.MakeMove(move);
-            var callResults = -Negamax(board, timer, maxDepth - 1, -beta, -alpha).alpha;
-            board.UndoMove(move);
+            int currentValue = (int)scoreMove.CapturePieceType * 10 - (int)scoreMove.MovePieceType;
+            currentValue += scoreMove.IsPromotion ? (int)scoreMove.PromotionPieceType : 0;
+            if (scoreMove == entry.move) currentValue = 99999;
+
+            scoresList.Add(currentValue);
+        }
+
+        Array.Sort(scoresList.ToArray(), moves);
+        Array.Reverse(moves);
+
+        foreach (Move searchMove in moves)
+        {
+            // Out of time
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30) return (99999, Move.NullMove);
+
+            board.MakeMove(searchMove);
+            var callResults = -Negamax(board, timer, depth - 1, ply + 1, -beta, -alpha, move).alpha;
+            board.UndoMove(searchMove);
             valueList.Add(callResults);
 
             maxEval = Math.Max(maxEval, callResults);
             alpha = Math.Max(alpha, maxEval);
 
-            // Out of time
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
-                break;
+
 
             if (alpha >= beta)
                 break;
         }
 
-        return (alpha, moves[valueList.IndexOf(valueList.Max())]);
+        // Did we fail high/low or get an exact score?
+        int bound = maxEval >= beta ? 2 : maxEval > origAlpha ? 3 : 1;
+        Move bestMove = moves[valueList.IndexOf(valueList.Max())];
+
+        // Push to TT
+        tt[key % entries] = new TTEntry(key, bestMove, depth, maxEval, bound);
+
+        return (alpha, bestMove);
     }
 }
