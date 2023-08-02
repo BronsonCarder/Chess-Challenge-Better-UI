@@ -21,21 +21,22 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        Move bestMove = Move.NullMove;
-        int alpha = -99999;
-        int beta = 99999;
+        Move[] moves = board.GetLegalMoves();
+        Random rng = new Random();
+        Move bestMove = moves[rng.Next(moves.Length)]; 
+        int alpha = -99999, beta = 99999, depth;
 
-        for (int depth = 1; depth <= 42; depth++)
+        for (depth = 1; depth <= 42; depth++)
         {
             var results = Negamax(board, timer, depth, 0, alpha, beta, bestMove);
 
             // Out of time
             if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
                 break;
-
+            
             bestMove = results.bestMove;
         }
-
+        Console.WriteLine(depth);
         return bestMove;
     }
 
@@ -51,20 +52,13 @@ public class MyBot : IChessBot
 
     static int EvaluatePosition(Board board)
     {
-        if (board.IsDraw())
-            return 0;
+        if (board.IsDraw()) return 0;
 
-        if (board.IsInCheckmate())
-            return -99999 + board.PlyCount;
+        if (board.IsInCheckmate()) return -99999 + board.PlyCount;
 
         bool isWhite = board.IsWhiteToMove;
-        int myMaterial;
-        int opMaterial;
-
-        myMaterial = GetMaterial(board, isWhite);
-        opMaterial = GetMaterial(board, !isWhite);
-        Square myKing = board.GetKingSquare(isWhite);
-        Square opKing = board.GetKingSquare(!isWhite);
+        int myMaterial = GetMaterial(board, isWhite), opMaterial = GetMaterial(board, !isWhite);
+        Square myKing = board.GetKingSquare(isWhite), opKing = board.GetKingSquare(!isWhite);
         PieceList pawns = board.GetPieceList(PieceType.Pawn, isWhite);
 
         //Sets current value to the material value of opponent, minus material value of player. 
@@ -108,27 +102,12 @@ public class MyBot : IChessBot
 
     public (int alpha, Move bestMove) Negamax(Board board, Timer timer, int depth, int ply, int alpha, int beta, Move move)
     {
-        Move[] moves = board.GetLegalMoves();
-        List<int> scoresList = new();
-        List<int> valueList = new();
-        bool notRoot = ply > 0;
-        int maxEval = -99999;
-        int origAlpha = alpha;
+        List<int> scoresList = new(), valueList = new();
+        bool notRoot = ply > 0, qSearch = board.GetLegalMoves(true).Length > 0;
+        int maxEval = -99999, origAlpha = alpha;
         ulong key = board.ZobristKey;
 
         TTEntry entry = tt[key % entries];
-
-        if (notRoot && board.IsDraw())
-            return (0, move);
-
-        if (board.IsInCheckmate())
-            return (-99999 + board.PlyCount, move);
-
-        if (depth == 0)
-        {
-            int leafResult = EvaluatePosition(board);
-            return (leafResult, move);
-        }
 
         // TT cutoffs
         if (notRoot && entry.key == key && entry.depth >= depth && (
@@ -136,6 +115,27 @@ public class MyBot : IChessBot
                 || entry.bound == 2 && entry.score >= beta // lower bound, fail high
                 || entry.bound == 1 && entry.score <= alpha // upper bound, fail low
         )) return (entry.score, entry.move);
+
+        if (notRoot && board.IsDraw())
+            return (0, move);
+
+        if (notRoot && board.IsInCheckmate())
+            return (-99999 + board.PlyCount, move);
+
+        int eval = EvaluatePosition(board);
+
+        if (depth <= 0 && qSearch)
+        {
+            if (eval >= beta) { return (eval, move); }
+            alpha = Math.Max(alpha, eval);
+        }
+
+        if (depth <= 0 && !qSearch)
+        {
+            return (eval, move);
+        }
+
+        Move[] moves = board.GetLegalMoves(qSearch);
 
         foreach (Move scoreMove in moves)
         {
@@ -152,20 +152,22 @@ public class MyBot : IChessBot
         foreach (Move searchMove in moves)
         {
             // Out of time
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30) return (99999, Move.NullMove);
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30) return (99999, moves.First());
 
             board.MakeMove(searchMove);
             var callResults = -Negamax(board, timer, depth - 1, ply + 1, -beta, -alpha, move).alpha;
             board.UndoMove(searchMove);
             valueList.Add(callResults);
 
-            maxEval = Math.Max(maxEval, callResults);
-            alpha = Math.Max(alpha, maxEval);
+            if (callResults > eval)
+            {
+                eval = callResults;
+                maxEval = Math.Max(maxEval, callResults);
+                alpha = Math.Max(alpha, maxEval);
 
-
-
-            if (alpha >= beta)
-                break;
+                if (alpha >= beta)
+                    break;
+            }
         }
 
         // Did we fail high/low or get an exact score?
@@ -175,6 +177,6 @@ public class MyBot : IChessBot
         // Push to TT
         tt[key % entries] = new TTEntry(key, bestMove, depth, maxEval, bound);
 
-        return (alpha, bestMove);
+        return (eval, bestMove);
     }
 }

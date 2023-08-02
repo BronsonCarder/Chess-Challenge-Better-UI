@@ -22,7 +22,9 @@ public class Stormwind : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        Move bestMove = Move.NullMove;
+        Move[] moves = board.GetLegalMoves();
+        Random rng = new Random();
+        Move bestMove = moves[rng.Next(moves.Length)];
         int alpha = -99999;
         int beta = 99999;
 
@@ -122,7 +124,7 @@ public class Stormwind : IChessBot
         if (notRoot && board.IsDraw())
             return (0, move);
 
-        if (board.IsInCheckmate())
+        if (notRoot && board.IsInCheckmate())
             return (-99999 + board.PlyCount, move);
 
         if (depth == 0)
@@ -153,7 +155,7 @@ public class Stormwind : IChessBot
         foreach (Move searchMove in moves)
         {
             // Out of time
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30) return (99999, Move.NullMove);
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30) return (-99999, searchMove);
 
             board.MakeMove(searchMove);
             var callResults = -Negamax(board, timer, depth - 1, ply + 1, -beta, -alpha, move).alpha;
