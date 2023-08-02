@@ -38,21 +38,20 @@ public class Stormwind : IChessBot
 
     static int EvaluatePosition(Board board)
     {
-        if (board.IsInCheckmate())
-            return -99999 + board.PlyCount;
-
         if (board.IsDraw())
             return 0;
 
+        if (board.IsInCheckmate())
+            return -99999 + board.PlyCount;
+
         bool isWhite = board.IsWhiteToMove;
-        bool isPlayer = board.PlyCount % 2 == 0;
         int myMaterial;
         int opMaterial;
 
         myMaterial = GetMaterial(board, isWhite);
         opMaterial = GetMaterial(board, !isWhite);
-        Square myKing = board.GetKingSquare(isPlayer);
-        Square opKing = board.GetKingSquare(!isPlayer);
+        Square myKing = board.GetKingSquare(isWhite);
+        Square opKing = board.GetKingSquare(!isWhite);
         PieceList pawns = board.GetPieceList(PieceType.Pawn, isWhite);
 
         //Sets current value to the material value of opponent, minus material value of player. 
@@ -60,7 +59,7 @@ public class Stormwind : IChessBot
 
         currentValue += board.IsInCheck() ? 200 + board.PlyCount * 5 : 0;
 
-        if (isPlayer)
+        if (isWhite)
         {
             currentValue += opMaterial < 2800 ? (8 - myKing.Rank) * 10 : 0;
         }
@@ -71,7 +70,7 @@ public class Stormwind : IChessBot
 
         foreach (Piece piece in pawns)
         {
-            if (!isPlayer)
+            if (!isWhite)
             {
                 currentValue += (piece.Square.Rank - 8);
             }
