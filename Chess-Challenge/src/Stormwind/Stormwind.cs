@@ -8,7 +8,22 @@ public class Stormwind : IChessBot
 {
     public Move Think(Board board, Timer timer)
     {
-        return Negamax(board, 4, -99999, 99999).bestMove;
+        Move bestMove = Move.NullMove;
+        int alpha = -99999;
+        int beta = 99999;
+
+        for (int depth = 1; depth <= 10; depth++)
+        {
+            var results = Negamax(board, timer, depth, alpha, beta);
+
+            // Out of time
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
+                break;
+
+            bestMove = results.bestMove;
+        }
+
+        return bestMove;
     }
 
     static int GetMaterial(Board board, bool isWhite)
@@ -79,7 +94,19 @@ public class Stormwind : IChessBot
         return currentValue;
     }
 
-    static (int eval, Move bestMove) Negamax(Board board, int maxDepth, int alpha, int beta)
+    static Move[] MoveOrdering(Board board)
+    {
+        Move[] moves = board.GetLegalMoves();
+        List<int> valueList = new();
+
+        foreach (Move move in moves)
+            valueList.Add(-((int)move.CapturePieceType * 100 - (int)move.MovePieceType));
+
+        Array.Sort(valueList.ToArray(), moves);
+        return moves;
+    }
+
+    static (int alpha, Move bestMove) Negamax(Board board, Timer timer, int maxDepth, int alpha, int beta)
     {
         if (board.IsInCheckmate())
             return (-99999 + board.PlyCount, Move.NullMove);
@@ -93,24 +120,28 @@ public class Stormwind : IChessBot
             return (leafResult, Move.NullMove);
         }
 
-        Move[] moves = board.GetLegalMoves();
+        Move[] moves = MoveOrdering(board);
         List<int> valueList = new();
-        int eval = -99999;
+        int maxEval = -99999;
 
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int callResults = -Negamax(board, maxDepth - 1, -beta, -alpha).eval;
+            var callResults = -Negamax(board, timer, maxDepth - 1, -beta, -alpha).alpha;
             board.UndoMove(move);
             valueList.Add(callResults);
 
-            eval = Math.Max(eval, callResults);
-            alpha = Math.Max(alpha, eval);
+            maxEval = Math.Max(maxEval, callResults);
+            alpha = Math.Max(alpha, maxEval);
+
+            // Out of time
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
+                break;
 
             if (alpha >= beta)
                 break;
         }
 
-        return (eval, moves[valueList.IndexOf(valueList.Max())]);
+        return (alpha, moves[valueList.IndexOf(valueList.Max())]);
     }
 }
