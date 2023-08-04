@@ -1,11 +1,12 @@
 ﻿using Raylib_cs;
+using System.Security.Cryptography;
 
 namespace ChessChallenge.Application
 {
     public class BoardTheme
     {
-        public Color LightCol = new Color(238, 216, 192, 255);
-        public Color DarkCol = new Color(171, 121, 101, 255);
+        public Color LightCol = new Color(RandomNumberGenerator.GetInt32(255), RandomNumberGenerator.GetInt32(255), RandomNumberGenerator.GetInt32(255), 255);
+        public Color DarkCol = new Color(RandomNumberGenerator.GetInt32(255), RandomNumberGenerator.GetInt32(255), RandomNumberGenerator.GetInt32(255), 255);
 
         public Color selectedLight = new Color(236, 197, 123, 255);
         public Color selectedDark = new Color(200, 158, 80, 255);
